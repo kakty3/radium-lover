@@ -75,10 +75,11 @@ def get_song_name():
     return song.findall('string')[-1].text.encode('utf-8')
 
 def search_song(search_queue, access_token):
+    # TODO: rewrite with json
     print('Looking for "{}"'.format(search_queue))
     print '- ' * 30
     search_queue = search_queue.replace(' ', '%20')
-    request = ('https://api.vk.com/method/audio.search.xml?'
+    request = ('https://api.vk.com/method/audio.search?'
         'q={search_queue}&'
         'count=5&'
         'access_token={access_token}').format(
@@ -86,25 +87,29 @@ def search_song(search_queue, access_token):
         access_token=access_token)
     # print request
     response = urllib2.urlopen(request)
-    data = response.read()
-    root = ET.fromstring(data)
-    if int(root.find('count').text) == 0:
+    json_data = response.read()
+    data = json.loads(json_data)
+    if not 'response' in data:
+        print 'Some error occured'
+        return
+    if data['response'][0] == 0:
         print 'Nothing found'
         return None, None
-    # print root.tag
-    for song in root.findall('audio'):
-        artist = song.find('artist').text.encode('utf-8')
-        title = song.find('title').text.encode('utf-8')
-        audio_id = song.find('aid').text
-        owner_id = song.find('owner_id').text
+    for song in data['response'][1:]:
+        artist = song['artist'].encode('utf-8')
+        title = song['title'].encode('utf-8')
+        audio_id = song['aid']
+        owner_id = song['owner_id']
         print '  {} - {} [audio_id={}, owner_id={}]'.format(artist, title, audio_id, owner_id)
     print '- ' * 30
 
-    song = root.findall('audio')[0]
-    audio_id = song.find('aid').text
-    owner_id = song.find('owner_id').text
+    song = data['response'][1]
+    # artist = song['artist'].encode('utf-8')
+    # title = song['title'].encode('utf-8')
+    audio_id = song['aid']
+    owner_id = song['owner_id']
     return audio_id, owner_id
-    # print data
+
 
 def add_song(audio_id, owner_id, access_token):
     request = ('https://api.vk.com/method/audio.add?'
@@ -119,15 +124,12 @@ def add_song(audio_id, owner_id, access_token):
     response = urllib2.urlopen(request).read()
     if 'response' in json.loads(response):
         print 'Song successfully added.'
-        # Notifier('zaebal')
-    # print response.read()
 
 
 if __name__ == '__main__':
     # Notifier.notify('Song was successfully added', title='Title', subtitle='Subtitle', sender='com.catpigstudios.Radium')
 
     token = get_vk_token()
-    # print token
     song_name = get_song_name()
     audio_id, owner_id = search_song(song_name, token)
     # if audio_id is not None:
