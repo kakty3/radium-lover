@@ -1,0 +1,7 @@
+# TODO:
++ token caching
+- filtering special symbols in song name
+- ask if matching is not 100%
+- add MacOS notification pync
+- automatic detecting liking song http://brunorocha.org/python/watching-a-directory-for-file-changes-with-python.html
+- check if song is already added

@@ -1,0 +1,10 @@
+syntax: glob
+
+## Jetbrains
+.idea/
+*.iml
+
+
+*.py[cod]
+
+token_cache
