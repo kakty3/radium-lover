@@ -1,7 +1,13 @@
 # TODO:
 + token caching
+- load token with path where script located
 - filtering special symbols in song name
 - ask if matching is not 100%
-- add MacOS notification pync
-- automatic detecting liking song http://brunorocha.org/python/watching-a-directory-for-file-changes-with-python.html
++ add MacOS notification
+- automatic detecting favourited song http://brunorocha.org/python/watching-a-directory-for-file-changes-with-python.html
 - check if song is already added
+- fetch vk_api parameters from config
+- [server] get REDIRECT_URI from headers of request
+- [?] move server to separate project
+- [server] add secret to 'get_token' action (e.g hash(code) + salt)
+- add token expiration checking (При выполнении методов требующих авторизации, возвратится ошибка 17: Validation required. )

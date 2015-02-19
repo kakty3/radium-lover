@@ -11,11 +11,6 @@ ACCESS_TOKEN_OBJECT = None
 REDIRECT_URI = 'http://demur.in:3423'
 
 class MyHandler(BaseHTTPRequestHandler):
-    # def __init__(self, *args, **kwargs):
-    #     MyHandler.token = None
-    #     BaseHTTPRequestHandler.__init__(self, *args, **kwargs)
-        # super(MyHandler, self).__init__(self, *args, **kwargs)
-
     def do_GET(self):
         # print self.path
         global ACCESS_TOKEN_OBJECT
@@ -34,9 +29,9 @@ class MyHandler(BaseHTTPRequestHandler):
             self.wfile.write(ACCESS_TOKEN_OBJECT)
             return
 
-        get_parameters = parse_qs(self.path[2:])
-        if 'code' in get_parameters:
-            ACCESS_TOKEN_OBJECT = get_token_object(APP_ID, APP_SECRET, get_parameters['code'][0])
+        url_parameters = parse_qs(self.path[2:])
+        if 'code' in url_parameters:
+            ACCESS_TOKEN_OBJECT = get_token_object(APP_ID, APP_SECRET, url_parameters['code'][0])
         # print("Just received a GET request")
         self.send_response(200)
         self.send_header("Content-type", "text/html")
@@ -61,7 +56,7 @@ def get_token_object(app_id, app_secret, code):
         APP_ID=app_id,
         APP_SECRET=app_secret,
         CODE=code,
-        REDIRECT_URI='http://demur.in:3423'
+        REDIRECT_URI=REDIRECT_URI
     )
     # print 'Fetching token'
     json_response = urllib2.urlopen(request).read()
