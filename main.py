@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 import xml.etree.ElementTree as ET
 import urllib2
 import time
@@ -10,6 +12,7 @@ from pync import Notifier
 
 APP_ID = '4786305'
 REDIRECT_URI = 'http://demur.in:3423'
+SCRIPT_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
 
 def get_vk_token():
     token = load_token_from_file()
@@ -20,7 +23,7 @@ def get_vk_token():
     return token['access_token']
 
 def load_token_from_file():
-    cache_filename = 'token_cache'
+    cache_filename = os.path.join(SCRIPT_DIRECTORY, 'token_cache')
     if not os.path.isfile(cache_filename):
         return None
     with open(cache_filename, 'r') as cache_file:
@@ -28,7 +31,7 @@ def load_token_from_file():
         return token
 
 def save_token_to_file(token):
-    cache_filename = 'token_cache'
+    cache_filename = os.path.join(SCRIPT_DIRECTORY, 'token_cache')
     with open(cache_filename, 'w') as cache_file:
         pickle.dump(token, cache_file)
 

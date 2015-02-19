@@ -1,6 +1,6 @@
 # TODO:
 + token caching
-- load token with path where script located
++ load token with path where script located
 - filtering special symbols in song name
 - ask if matching is not 100%
 + add MacOS notification
