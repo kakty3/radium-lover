@@ -7,9 +7,6 @@
 - automatic detecting favourited song http://brunorocha.org/python/watching-a-directory-for-file-changes-with-python.html
 - check if song is already added
 - fetch vk_api parameters from config
-- [server] get REDIRECT_URI from headers of request
-- [?] move server to separate project
-- [server] add secret to 'get_token' action (e.g hash(code) + salt)
 - add token expiration checking (При выполнении методов требующих авторизации, возвратится ошибка 17: Validation required. )
 - add song to radiostation al
 - Looking for "Wes Montgomery & Milt Jackson - Delila" -> 1. Wes Montgomery - Caravan

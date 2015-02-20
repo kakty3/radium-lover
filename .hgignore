@@ -9,3 +9,5 @@ syntax: glob
 
 token_cache
 logo.png
+
+cookie.txt

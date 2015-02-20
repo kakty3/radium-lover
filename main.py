@@ -2,27 +2,28 @@
 #coding: utf-8
 import xml.etree.ElementTree as ET
 import urllib2
-import time
-import webbrowser
+import getpass
 import os
 from urllib import urlencode
+import cStringIO
+import pycurl
+import re
 # import sys
 import pickle
 import json
-import requests
 from pync import Notifier
-from selenium import webdriver
 
 
 APP_ID = '4786305'
-REDIRECT_URI = 'http://demur.in:3423'
+# REDIRECT_URI = 'http://demur.in:3423'
 SCRIPT_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
+
 
 def get_vk_token():
     token = load_token_from_file()
     if token is not None:
         return token['access_token']
-    token = get_vk_token_object(APP_ID)
+    token = get_vk_token_object()
     save_token_to_file(token)
     return token['access_token']
 
@@ -39,33 +40,33 @@ def save_token_to_file(token):
     with open(cache_filename, 'w') as cache_file:
         pickle.dump(token, cache_file)
 
-def get_vk_token_object(APP_ID):
-    try:
-        urllib2.urlopen(REDIRECT_URI)
-    except urllib2.URLError:
-        print 'Authentication server is not running'
-        return None
-
-    parameters = {
-        'client_id': APP_ID,
-        'scope': 8,  # audio
-        'redirect_uri': REDIRECT_URI,
-        'display': 'page',  # try out other variants
-        'v': 5.28,
-        'response_type': 'code'
-    }
-    auth_url = "https://oauth.vk.com/authorize?{}".format(urlencode(parameters))
-
-    webbrowser.open_new(auth_url)
-
-    get_token_string = lambda: urllib2.urlopen(REDIRECT_URI + '/get_token').read()
-    token_string = get_token_string()
-    while token_string == 'None':
-        time.sleep(0.5)
-        print '.',
-        token_string = get_token_string()
-    token_object = json.loads(token_string)
-    return token_object
+# def get_vk_token_object(APP_ID):
+#     try:
+#         urllib2.urlopen(REDIRECT_URI)
+#     except urllib2.URLError:
+#         print 'Authentication server is not running'
+#         return None
+#
+#     parameters = {
+#         'client_id': APP_ID,
+#         'scope': 8,  # audio
+#         'redirect_uri': REDIRECT_URI,
+#         'display': 'page',  # try out other variants
+#         'v': 5.28,
+#         'response_type': 'code'
+#     }
+#     auth_url = "https://oauth.vk.com/authorize?{}".format(urlencode(parameters))
+#
+#     webbrowser.open_new(auth_url)
+#
+#     get_token_string = lambda: urllib2.urlopen(REDIRECT_URI + '/get_token').read()
+#     token_string = get_token_string()
+#     while token_string == 'None':
+#         time.sleep(0.5)
+#         print '.',
+#         token_string = get_token_string()
+#     token_object = json.loads(token_string)
+#     return token_object
 
 
 def get_song_name():
@@ -132,8 +133,75 @@ def add_song(audio_id, owner_id, access_token):
     response = urllib2.urlopen(requests_url).read()
     return 'response' in json.loads(response)
 
+def auth_into_vk(email, password):
+    url = 'http://vk.com/login.php'
+
+    buf = cStringIO.StringIO()
+
+    c = pycurl.Curl()
+    c.setopt(c.URL, url)
+    c.setopt(c.FOLLOWLOCATION, 1)
+    c.setopt(c.COOKIEJAR, "cookie.txt")
+    c.setopt(c.COOKIEFILE, "cookie.txt")
+    c.setopt(c.WRITEFUNCTION, buf.write)
+
+    postFields = '_origin=https://oauth.vk.com'
+    postFields += '&email=' + email + '&pass=' + password
+    c.setopt(c.POSTFIELDS, postFields)
+    c.setopt(c.POST, 1)
+    c.perform()
+    c.close()
+    buf.close()
+
+def get_vk_token_object():
+    password = getpass.getpass()
+    auth_into_vk(email='kakty3.mail@gmail.com',
+                 password=password)
+
+    global APP_ID
+    parameters = {
+        'client_id': APP_ID,
+        'scope': 'audio',  # audio
+        'redirect_uri': 'https://oauth.vk.com/blank.html',
+        'display': 'page',  # try out other variants
+        'v': 5.28,
+        'response_type': 'token'
+    }
+    auth_url = "https://oauth.vk.com/authorize?{}".format(urlencode(parameters))
+
+    buf = cStringIO.StringIO()
+    # for suppress output
+    storage = cStringIO.StringIO()
+    c = pycurl.Curl()
+    c.setopt(c.URL, auth_url)
+    c.setopt(c.FOLLOWLOCATION, False)
+    c.setopt(c.COOKIEJAR, "cookie.txt")
+    c.setopt(c.COOKIEFILE, "cookie.txt")
+
+    c.setopt(c.HEADERFUNCTION, buf.write)
+    # for suppress output
+    c.setopt(c.WRITEFUNCTION, storage.write)
+
+    c.perform()
+    redirect_url = c.getinfo(c.REDIRECT_URL)
+    c.setopt(c.URL, redirect_url)
+    c.perform()
+    token_url = c.getinfo(c.REDIRECT_URL)
+
+    c.close()
+    buf.close()
+    storage.close()
+
+    token_object = {}
+    token_object['access_token'] = re.search('access_token=([0-9A-Fa-f]+)&', token_url).group(1)
+    token_object['expires_in'] = re.search('expires_in=([0-9A-Fa-f]+)&', token_url).group(1)
+    token_object['user_id'] = re.search('user_id=([0-9A-Fa-f]+)', token_url).group(1)
+
+    return token_object
 
 if __name__ == '__main__':
+
+    # print get_token()
     token = get_vk_token()
     print token
     song_name = get_song_name()
