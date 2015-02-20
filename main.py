@@ -1,14 +1,18 @@
 #! /usr/bin/env python
-
+#coding: utf-8
 import xml.etree.ElementTree as ET
 import urllib2
 import time
 import webbrowser
 import os
+from urllib import urlencode
 # import sys
 import pickle
 import json
+import requests
 from pync import Notifier
+from selenium import webdriver
+
 
 APP_ID = '4786305'
 REDIRECT_URI = 'http://demur.in:3423'
@@ -42,32 +46,27 @@ def get_vk_token_object(APP_ID):
         print 'Authentication server is not running'
         return None
 
-    request = (
-        'https://oauth.vk.com/authorize?'
-        'client_id={APP_ID}&'
-        'scope={PERMISSIONS}&'
-        'redirect_uri={REDIRECT_URI}&'
-        'display={DISPLAY}&'
-        'v={API_VERSION}&'
-        'response_type=code'
-    ).format(
-        APP_ID=APP_ID,
-        PERMISSIONS=8,  # audio
-        DISPLAY='page',  # try out other variants
-        REDIRECT_URI=REDIRECT_URI,
-        API_VERSION=5.28
-    )
+    parameters = {
+        'client_id': APP_ID,
+        'scope': 8,  # audio
+        'redirect_uri': REDIRECT_URI,
+        'display': 'page',  # try out other variants
+        'v': 5.28,
+        'response_type': 'code'
+    }
+    auth_url = "https://oauth.vk.com/authorize?{}".format(urlencode(parameters))
 
-    webbrowser.open_new(request)
+    webbrowser.open_new(auth_url)
 
     get_token_string = lambda: urllib2.urlopen(REDIRECT_URI + '/get_token').read()
     token_string = get_token_string()
     while token_string == 'None':
-        time.sleep(0.1)
+        time.sleep(0.5)
         print '.',
         token_string = get_token_string()
     token_object = json.loads(token_string)
     return token_object
+
 
 def get_song_name():
     home = os.path.expanduser("~")
@@ -81,15 +80,14 @@ def search_song(search_queue, access_token):
     # TODO: rewrite with json
     print('Looking for "{}"'.format(search_queue))
     print '- ' * 30
-    search_queue = search_queue.replace(' ', '%20')
-    request = ('https://api.vk.com/method/audio.search?'
-        'q={search_queue}&'
-        'count=5&'
-        'access_token={access_token}').format(
-        search_queue=search_queue,
-        access_token=access_token)
-    # print request
-    response = urllib2.urlopen(request)
+    parameters = {
+        'q': search_queue,
+        'count': 5,
+        'access_token': access_token
+    }
+    request_url = 'https://api.vk.com/method/audio.search?{}'.format(urlencode(parameters))
+
+    response = urllib2.urlopen(request_url)
     json_data = response.read()
     data = json.loads(json_data)
     if not 'response' in data:
@@ -124,26 +122,25 @@ def add_song(audio_id, owner_id, access_token):
     :return: True if song added, False if error occurred
     :rtype: bool
     """
-    request = ('https://api.vk.com/method/audio.add?'
-        'audio_id={audio_id}&'
-        'owner_id={owner_id}&'
-        'access_token={access_token}'
-    ).format(
-        audio_id=audio_id,
-        owner_id=owner_id,
-        access_token=access_token
-    )
-    response = urllib2.urlopen(request).read()
+    parameters = {
+        'audio_id': audio_id,
+        'owner_id': owner_id,
+        'access_token': access_token
+    }
+    requests_url = 'https://api.vk.com/method/audio.add?{}'.format(urlencode(parameters))
+
+    response = urllib2.urlopen(requests_url).read()
     return 'response' in json.loads(response)
 
 
 if __name__ == '__main__':
     token = get_vk_token()
+    print token
     song_name = get_song_name()
     song = search_song(song_name, token)
     if song is not None:
-        # song_added = False
-        song_added = add_song(song['aid'], song['owner_id'], token)
+        song_added = False
+        # song_added = add_song(song['aid'], song['owner_id'], token)
         if song_added:
             print 'Song successfully added.'
             Notifier.notify('Song was successfully added.',

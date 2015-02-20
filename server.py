@@ -1,18 +1,18 @@
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from urlparse import parse_qs
-# import webbrowser
 import urllib2
-# import time
-import json
+from urllib import urlencode
 
 APP_ID = 4786305
 APP_SECRET = 'RgGtGp8CwfewgwW1Pldl'
 ACCESS_TOKEN_OBJECT = None
-REDIRECT_URI = 'http://demur.in:3423'
+REDIRECT_URI = None
 
 class MyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # print self.path
+        global  REDIRECT_URI
+        REDIRECT_URI = self.headers.get('Host')
+        print REDIRECT_URI
         global ACCESS_TOKEN_OBJECT
         question_mark_position = self.path.find('?')
         if question_mark_position == -1:
@@ -46,20 +46,28 @@ class MyHandler(BaseHTTPRequestHandler):
 
 
 def get_token_object(app_id, app_secret, code):
-    request = (
-        'https://oauth.vk.com/access_token?'
-        'client_id={APP_ID}&'
-        'client_secret={APP_SECRET}&'
-        'code={CODE}&'
-        'redirect_uri={REDIRECT_URI}'
-    ).format(
-        APP_ID=app_id,
-        APP_SECRET=app_secret,
-        CODE=code,
-        REDIRECT_URI=REDIRECT_URI
-    )
+    # request = (
+    #     'https://oauth.vk.com/access_token?'
+    #     'client_id={APP_ID}&'
+    #     'client_secret={APP_SECRET}&'
+    #     'code={CODE}&'
+    #     'redirect_uri={REDIRECT_URI}'
+    # ).format(
+    #     APP_ID=app_id,
+    #     APP_SECRET=app_secret,
+    #     CODE=code,
+    #     REDIRECT_URI=REDIRECT_URI
+    # )
+    parameters = {
+        'client_id': app_id,
+        'client_secret': app_secret,
+        'code': code,
+        'redirect_uri': REDIRECT_URI
+    }
+    request_url = 'https://oauth.vk.com/access_token?{}'.format(urlencode(parameters))
+
     # print 'Fetching token'
-    json_response = urllib2.urlopen(request).read()
+    json_response = urllib2.urlopen(request_url).read()
     # token_object = json.loads(json_response)
     # token = dict_response['access_token']
     # print 'Token received', token
@@ -67,7 +75,7 @@ def get_token_object(app_id, app_secret, code):
 
 
 if __name__ == "__main__":
-    server = HTTPServer(('192.168.0.101', 8888), MyHandler)
+    server = HTTPServer(('192.168.0.106', 5676), MyHandler)
     print('Started http server')
     try:
         server.serve_forever()

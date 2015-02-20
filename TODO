@@ -11,3 +11,10 @@
 - [?] move server to separate project
 - [server] add secret to 'get_token' action (e.g hash(code) + salt)
 - add token expiration checking (При выполнении методов требующих авторизации, возвратится ошибка 17: Validation required. )
+- add song to radiostation al
+- Looking for "Wes Montgomery & Milt Jackson - Delila" -> 1. Wes Montgomery - Caravan
+- Looking for "054 All The People - Cramp Your Style" -> Nothing found
+- Rufus &amp; Chaka Khan - Feel Good -> decode from &amp; to '&'
+-  1. Rufus &amp; Chaka Khan - Feel Good
+   3. Rufus - Feel good
+   3rd song is better, but 1st added. Add song with minimum diff
