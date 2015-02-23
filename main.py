@@ -8,6 +8,7 @@ from urllib import urlencode
 import cStringIO
 import pycurl
 import re
+import HTMLParser
 # import sys
 import pickle
 import json
@@ -47,7 +48,8 @@ def get_song_name():
     tree = ET.parse(radium_songs_log_filename)
     root = tree.getroot()
     song = root[0][0]
-    return song.findall('string')[-1].text.encode('utf-8')
+    song_name = song.findall('string')[-1].text.encode('utf-8')
+    return HTMLParser.HTMLParser().unescape(song_name)
 
 
 def search_song(search_queue, access_token):
@@ -181,12 +183,13 @@ if __name__ == '__main__':
 
     # print get_token()
     token = get_vk_token()
-    print token
+    # print token
     song_name = get_song_name()
+    # song_name = 'Rufus & Chaka Khan - Feel Good'
     song = search_song(song_name, token)
     if song is not None:
-        # song_added = False
-        song_added = add_song(song['aid'], song['owner_id'], token)
+        # song_added = add_song(song['aid'], song['owner_id'], token)
+        song_added = False
         if song_added:
             print 'Song successfully added.'
             Notifier.notify('Song was successfully added.',

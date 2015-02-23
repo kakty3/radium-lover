@@ -1,9 +1,9 @@
 # TODO:
 - add token expiration checking (При выполнении методов требующих авторизации, возвратится ошибка 17: Validation required. )
-- automatic detecting favourited song http://brunorocha.org/python/watching-a-directory-for-file-changes-with-python.html
-- fetch vk_api parameters from config
 
 - filtering special symbols in song name
+- automatic detecting favourited song http://brunorocha.org/python/watching-a-directory-for-file-changes-with-python.html
+- fetch vk_api parameters from config
 - ask if matching is not 100%
 - check if song is already added
 - add song to radiostation al
