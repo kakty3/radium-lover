@@ -12,62 +12,34 @@ import re
 import pickle
 import json
 from pync import Notifier
-
+import time
 
 APP_ID = '4786305'
-# REDIRECT_URI = 'http://demur.in:3423'
 SCRIPT_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
+COOKIE_FILE = os.path.join(SCRIPT_DIRECTORY, 'cookie.txt')
+TOKEN_CACHE_FILENAME = os.path.join(SCRIPT_DIRECTORY, 'token_cache')
 
 
 def get_vk_token():
     token = load_token_from_file()
-    if token is not None:
-        return token['access_token']
-    token = get_vk_token_object()
-    save_token_to_file(token)
+    token_expired = token is None or int(time.time()) >= token['expiring_time']
+    if token_expired:
+        token = get_vk_token_object()
+        save_token_to_file(token)
     return token['access_token']
 
 def load_token_from_file():
-    cache_filename = os.path.join(SCRIPT_DIRECTORY, 'token_cache')
-    if not os.path.isfile(cache_filename):
+    global TOKEN_CACHE_FILENAME
+    if not os.path.isfile(TOKEN_CACHE_FILENAME):
         return None
-    with open(cache_filename, 'r') as cache_file:
+    with open(TOKEN_CACHE_FILENAME, 'r') as cache_file:
         token = pickle.load(cache_file)
         return token
 
 def save_token_to_file(token):
-    cache_filename = os.path.join(SCRIPT_DIRECTORY, 'token_cache')
-    with open(cache_filename, 'w') as cache_file:
+    global TOKEN_CACHE_FILENAME
+    with open(TOKEN_CACHE_FILENAME, 'w') as cache_file:
         pickle.dump(token, cache_file)
-
-# def get_vk_token_object(APP_ID):
-#     try:
-#         urllib2.urlopen(REDIRECT_URI)
-#     except urllib2.URLError:
-#         print 'Authentication server is not running'
-#         return None
-#
-#     parameters = {
-#         'client_id': APP_ID,
-#         'scope': 8,  # audio
-#         'redirect_uri': REDIRECT_URI,
-#         'display': 'page',  # try out other variants
-#         'v': 5.28,
-#         'response_type': 'code'
-#     }
-#     auth_url = "https://oauth.vk.com/authorize?{}".format(urlencode(parameters))
-#
-#     webbrowser.open_new(auth_url)
-#
-#     get_token_string = lambda: urllib2.urlopen(REDIRECT_URI + '/get_token').read()
-#     token_string = get_token_string()
-#     while token_string == 'None':
-#         time.sleep(0.5)
-#         print '.',
-#         token_string = get_token_string()
-#     token_object = json.loads(token_string)
-#     return token_object
-
 
 def get_song_name():
     home = os.path.expanduser("~")
@@ -76,6 +48,7 @@ def get_song_name():
     root = tree.getroot()
     song = root[0][0]
     return song.findall('string')[-1].text.encode('utf-8')
+
 
 def search_song(search_queue, access_token):
     # TODO: rewrite with json
@@ -93,6 +66,7 @@ def search_song(search_queue, access_token):
     data = json.loads(json_data)
     if not 'response' in data:
         print 'Some error occurred'
+        print data
         return
     if data['response'][0] == 0:
         # print 'Nothing found'
@@ -141,8 +115,9 @@ def auth_into_vk(email, password):
     c = pycurl.Curl()
     c.setopt(c.URL, url)
     c.setopt(c.FOLLOWLOCATION, 1)
-    c.setopt(c.COOKIEJAR, "cookie.txt")
-    c.setopt(c.COOKIEFILE, "cookie.txt")
+    global COOKIE_FILE
+    c.setopt(c.COOKIEJAR, COOKIE_FILE)
+    c.setopt(c.COOKIEFILE, COOKIE_FILE)
     c.setopt(c.WRITEFUNCTION, buf.write)
 
     postFields = '_origin=https://oauth.vk.com'
@@ -175,8 +150,9 @@ def get_vk_token_object():
     c = pycurl.Curl()
     c.setopt(c.URL, auth_url)
     c.setopt(c.FOLLOWLOCATION, False)
-    c.setopt(c.COOKIEJAR, "cookie.txt")
-    c.setopt(c.COOKIEFILE, "cookie.txt")
+    global COOKIE_FILE
+    c.setopt(c.COOKIEJAR, COOKIE_FILE)
+    c.setopt(c.COOKIEFILE, COOKIE_FILE)
 
     c.setopt(c.HEADERFUNCTION, buf.write)
     # for suppress output
@@ -194,8 +170,10 @@ def get_vk_token_object():
 
     token_object = {}
     token_object['access_token'] = re.search('access_token=([0-9A-Fa-f]+)&', token_url).group(1)
-    token_object['expires_in'] = re.search('expires_in=([0-9A-Fa-f]+)&', token_url).group(1)
-    token_object['user_id'] = re.search('user_id=([0-9A-Fa-f]+)', token_url).group(1)
+    token_expires_in_seconds = int(re.search('expires_in=([0-9A-Fa-f]+)&', token_url).group(1))
+    # token_object['expires_in'] = re.search('expires_in=([0-9A-Fa-f]+)&', token_url).group(1)
+    # token_object['user_id'] = re.search('user_id=([0-9A-Fa-f]+)', token_url).group(1)
+    token_object['expiring_time'] = int(time.time()) + (token_expires_in_seconds - 1) * 60
 
     return token_object
 
@@ -207,8 +185,8 @@ if __name__ == '__main__':
     song_name = get_song_name()
     song = search_song(song_name, token)
     if song is not None:
-        song_added = False
-        # song_added = add_song(song['aid'], song['owner_id'], token)
+        # song_added = False
+        song_added = add_song(song['aid'], song['owner_id'], token)
         if song_added:
             print 'Song successfully added.'
             Notifier.notify('Song was successfully added.',
