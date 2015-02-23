@@ -6,15 +6,17 @@
 - fetch vk_api parameters from config
 - ask if matching is not 100%
 - check if song is already added
-- add song to radiostation al
+- add song to radiostation album
 - Looking for "Wes Montgomery & Milt Jackson - Delila" -> 1. Wes Montgomery - Caravan
 - Looking for "054 All The People - Cramp Your Style" -> Nothing found
-- Rufus &amp; Chaka Khan - Feel Good -> decode from &amp; to '&'
 -  1. Rufus &amp; Chaka Khan - Feel Good
    3. Rufus - Feel good
    3rd song is better, but 1st added. Add song with minimum diff
+- Library/Application Support/Radium/song_history.plist to global
+
 
 ______________
 + token caching
 + load token with path where script located
 + add MacOS notification
++ Rufus &amp; Chaka Khan - Feel Good -> decode from &amp; to '&'

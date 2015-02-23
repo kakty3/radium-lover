@@ -184,10 +184,19 @@ if __name__ == '__main__':
     # print get_token()
     token = get_vk_token()
     # print token
-    song_name = get_song_name()
-    # song_name = 'Rufus & Chaka Khan - Feel Good'
+    # song_name = get_song_name()
+    song_name = '054 All The People - Cramp Your Style'
     song = search_song(song_name, token)
-    if song is not None:
+    if song is None:
+        search_url = 'https://vk.com/audio?{}'.format(urlencode({'q': song_name}))
+        print 'Try by yourself', search_url
+        Notifier.notify('Click to open audio search in browser.',
+                title='Nothing found',
+                # subtitle='by ' + song['artist'],
+                sender='com.catpigstudios.Radium',
+                open=search_url)
+    else:
+    # if song is not None:
         # song_added = add_song(song['aid'], song['owner_id'], token)
         song_added = False
         if song_added:
