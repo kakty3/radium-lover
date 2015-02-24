@@ -9,12 +9,13 @@ import cStringIO
 import pycurl
 import re
 import HTMLParser
-# import sys
 import pickle
 import json
 from pync import Notifier
 import time
 
+HOME_DIR = os.path.expanduser("~")
+RADIUM_SONG_LOG_FILENAME = os.path.join(HOME_DIR, 'Library/Application Support/Radium/song_history.plist')
 APP_ID = '4786305'
 SCRIPT_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
 COOKIE_FILE = os.path.join(SCRIPT_DIRECTORY, 'cookie.txt')
@@ -25,12 +26,12 @@ def get_vk_token():
     token = load_token_from_file()
     token_expired = token is None or int(time.time()) >= token['expiring_time']
     if token_expired:
+        print 'Token expired. Fetching new one.'
         token = get_vk_token_object()
         save_token_to_file(token)
     return token['access_token']
 
 def load_token_from_file():
-    global TOKEN_CACHE_FILENAME
     if not os.path.isfile(TOKEN_CACHE_FILENAME):
         return None
     with open(TOKEN_CACHE_FILENAME, 'r') as cache_file:
@@ -43,9 +44,7 @@ def save_token_to_file(token):
         pickle.dump(token, cache_file)
 
 def get_song_name():
-    home = os.path.expanduser("~")
-    radium_songs_log_filename = os.path.join(home, 'Library/Application Support/Radium/song_history.plist')
-    tree = ET.parse(radium_songs_log_filename)
+    tree = ET.parse(RADIUM_SONG_LOG_FILENAME)
     root = tree.getroot()
     song = root[0][0]
     song_name = song.findall('string')[-1].text.encode('utf-8')
@@ -70,7 +69,7 @@ def search_song(search_queue, access_token):
         print 'Some error occurred'
         print data
         return
-    if data['response'][0] == 0:
+    if len(data['response']) <= 1:
         # print 'Nothing found'
         return None
     for index, song in enumerate(data['response'][1:]):
@@ -117,7 +116,6 @@ def auth_into_vk(email, password):
     c = pycurl.Curl()
     c.setopt(c.URL, url)
     c.setopt(c.FOLLOWLOCATION, 1)
-    global COOKIE_FILE
     c.setopt(c.COOKIEJAR, COOKIE_FILE)
     c.setopt(c.COOKIEFILE, COOKIE_FILE)
     c.setopt(c.WRITEFUNCTION, buf.write)
@@ -131,34 +129,33 @@ def auth_into_vk(email, password):
     buf.close()
 
 def get_vk_token_object():
-    password = getpass.getpass()
-    auth_into_vk(email='kakty3.mail@gmail.com',
-                 password=password)
+    # password = getpass.getpass()
+    # auth_into_vk(email='kakty3.mail@gmail.com',
+    #              password=password)
 
-    global APP_ID
     parameters = {
         'client_id': APP_ID,
-        'scope': 'audio',  # audio
+        'scope': 'audio',
         'redirect_uri': 'https://oauth.vk.com/blank.html',
-        'display': 'page',  # try out other variants
+        'display': 'page',
         'v': 5.28,
         'response_type': 'token'
     }
     auth_url = "https://oauth.vk.com/authorize?{}".format(urlencode(parameters))
 
-    buf = cStringIO.StringIO()
+    # buf = cStringIO.StringIO()
     # for suppress output
-    storage = cStringIO.StringIO()
+    # storage = cStringIO.StringIO()
     c = pycurl.Curl()
     c.setopt(c.URL, auth_url)
     c.setopt(c.FOLLOWLOCATION, False)
-    global COOKIE_FILE
+    # global COOKIE_FILE
     c.setopt(c.COOKIEJAR, COOKIE_FILE)
     c.setopt(c.COOKIEFILE, COOKIE_FILE)
 
-    c.setopt(c.HEADERFUNCTION, buf.write)
+    # c.setopt(c.HEADERFUNCTION, buf.write)
     # for suppress output
-    c.setopt(c.WRITEFUNCTION, storage.write)
+    # c.setopt(c.WRITEFUNCTION, storage.write)
 
     c.perform()
     redirect_url = c.getinfo(c.REDIRECT_URL)
@@ -167,15 +164,15 @@ def get_vk_token_object():
     token_url = c.getinfo(c.REDIRECT_URL)
 
     c.close()
-    buf.close()
-    storage.close()
+    # buf.close()
+    # storage.close()
 
     token_object = {}
     token_object['access_token'] = re.search('access_token=([0-9A-Fa-f]+)&', token_url).group(1)
     token_expires_in_seconds = int(re.search('expires_in=([0-9A-Fa-f]+)&', token_url).group(1))
     # token_object['expires_in'] = re.search('expires_in=([0-9A-Fa-f]+)&', token_url).group(1)
     # token_object['user_id'] = re.search('user_id=([0-9A-Fa-f]+)', token_url).group(1)
-    token_object['expiring_time'] = int(time.time()) + (token_expires_in_seconds - 1) * 60
+    token_object['expiring_time'] = int(time.time()) + token_expires_in_seconds - 60
 
     return token_object
 
@@ -184,8 +181,8 @@ if __name__ == '__main__':
     # print get_token()
     token = get_vk_token()
     # print token
-    # song_name = get_song_name()
-    song_name = '054 All The People - Cramp Your Style'
+    song_name = get_song_name()
+    song_name = 'All The People - Cramp Your Style'
     song = search_song(song_name, token)
     if song is None:
         search_url = 'https://vk.com/audio?{}'.format(urlencode({'q': song_name}))
@@ -197,11 +194,11 @@ if __name__ == '__main__':
                 open=search_url)
     else:
     # if song is not None:
-        # song_added = add_song(song['aid'], song['owner_id'], token)
-        song_added = False
-        if song_added:
-            print 'Song successfully added.'
-            Notifier.notify('Song was successfully added.',
-                            title=song['title'],
-                            subtitle='by ' + song['artist'],
-                            sender='com.catpigstudios.Radium')
+        song_id = add_song(song['aid'], song['owner_id'], token)
+        # song_added = False
+        # if song_added:
+        print 'Song successfully added.'
+        Notifier.notify(title=song['title'],
+                        subtitle='by ' + song['artist'],
+                        message='Song was successfully added.',
+                        sender='com.catpigstudios.Radium')

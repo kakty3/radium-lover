@@ -1,5 +1,6 @@
 # TODO:
 - add token expiration checking (При выполнении методов требующих авторизации, возвратится ошибка 17: Validation required. )
+- move vk auth part to separate file
 
 - filtering special symbols in song name
 - automatic detecting favourited song http://brunorocha.org/python/watching-a-directory-for-file-changes-with-python.html
@@ -12,7 +13,6 @@
 -  1. Rufus &amp; Chaka Khan - Feel Good
    3. Rufus - Feel good
    3rd song is better, but 1st added. Add song with minimum diff
-- Library/Application Support/Radium/song_history.plist to global
 
 
 ______________
@@ -20,3 +20,4 @@ ______________
 + load token with path where script located
 + add MacOS notification
 + Rufus &amp; Chaka Khan - Feel Good -> decode from &amp; to '&'
++ Library/Application Support/Radium/song_history.plist to global
