@@ -15,14 +15,18 @@ import json
 from pync import Notifier
 import time
 import BaseHTTPServer
+import webbrowser
+import SimpleHTTPServer, SocketServer
+import cgi
+import sys
 
 HOME_DIR = os.path.expanduser("~")
 RADIUM_SONG_LOG_FILENAME = os.path.join(HOME_DIR, 'Library/Application Support/Radium/song_history.plist')
 APP_ID = '4786305'
 SCRIPT_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
-COOKIE_FILE = os.path.join(SCRIPT_DIRECTORY, 'cookie.txt')
+# COOKIE_FILE = os.path.join(SCRIPT_DIRECTORY, 'cookie.txt')
 TOKEN_CACHE_FILENAME = os.path.join(SCRIPT_DIRECTORY, 'token_cache')
-
+TOKEN = None
 
 def get_vk_token():
     token = load_token_from_file()
@@ -75,10 +79,12 @@ def search_song(search_queue, access_token):
         'access_token': access_token
     }
     request_url = 'https://api.vk.com/method/audio.search?{}'.format(urlencode(parameters))
+    print request_url
 
     response = urllib2.urlopen(request_url)
     json_data = response.read()
     data = json.loads(json_data)
+    # TODO: add error_code handlers
     if not 'response' in data:
         print 'Some error occurred'
         print data
@@ -143,12 +149,40 @@ def add_song(audio_id, owner_id, access_token):
 #     c.close()
 #     buf.close()
 
-def run(server_class=BaseHTTPServer.HTTPServer,
-        handler_class=BaseHTTPServer.BaseHTTPRequestHandler):
-    server_address = ('', 8000)
-    httpd = server_class(server_address, handler_class)
-    httpd.serve_forever()
+class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+    # def do_HEAD(self):
+    #     self.send_response(200)
+    #     self.send_header("Content-type", "text/html")
+    #     self.end_headers()
+    def do_GET(self):
+        """Respond to a GET request."""
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write("<html>")
+        self.wfile.write("<body>")
+        js = '''
+            <script>
+            var xhr = new XMLHttpRequest();
+            var body = window.location.hash;
 
+            xhr.open("POST", 'http://localhost:8000', true)
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded')
+
+            xhr.send(body);
+            window.close();
+            </script>
+        '''
+        self.wfile.write(js)
+        self.wfile.write("</body></html>")
+
+    def do_POST(self):
+        ctype, pdict = cgi.parse_header(self.headers.getheader('content-type'))
+        length = int(self.headers.getheader('content-length'))
+        postvars = cgi.parse_qs(self.rfile.read(length), keep_blank_values=1)
+        global TOKEN
+        TOKEN = postvars
+        print postvars
 
 def get_vk_token_object():
     parameters = {
@@ -162,46 +196,17 @@ def get_vk_token_object():
     }
     auth_url = "https://oauth.vk.com/authorize?{}".format(urlencode(parameters))
 
-    print auth_url
+    webbrowser.open_new(auth_url)
+    PORT = 8000
+    httpd = SocketServer.TCPServer(("", PORT), MyHandler)
 
-    # buf = cStringIO.StringIO()
-    # for suppress output
-    storage = cStringIO.StringIO()
-    c = pycurl.Curl()
-    c.setopt(c.URL, auth_url)
-    c.setopt(c.FOLLOWLOCATION, 1)
-    # global COOKIE_FILE
-    c.setopt(c.COOKIEJAR, COOKIE_FILE)
-    c.setopt(c.COOKIEFILE, COOKIE_FILE)
+    httpd.handle_request()
+    httpd.handle_request()
+    TOKEN['access_token'] = TOKEN['#access_token']
+    for key, value in TOKEN.items():
+        TOKEN[key] = value[0]
+    return TOKEN
 
-    # c.setopt(c.HEADERFUNCTION, buf.write)
-    # for suppress output
-    c.setopt(c.WRITEFUNCTION, storage.write)
-    c.perform()
-    run()
-
-    redirect_url = c.getinfo(c.REDIRECT_URL)
-    print redirect_url
-    # return
-
-    c.setopt(c.URL, redirect_url)
-    c.perform()
-    token_url = c.getinfo(c.REDIRECT_URL)
-
-    c.close()
-    # buf.close()
-    # storage.close()
-
-    token_object = {}
-    token_object['access_token'] = re.search('access_token=([0-9A-Fa-f]+)&', token_url).group(1)
-    token_expires_in_seconds = int(re.search('expires_in=([0-9A-Fa-f]+)&', token_url).group(1))
-    # token_object['expires_in'] = re.search('expires_in=([0-9A-Fa-f]+)&', token_url).group(1)
-    # token_object['user_id'] = re.search('user_id=([0-9A-Fa-f]+)', token_url).group(1)
-    token_object['expiring_time'] = int(time.time()) + token_expires_in_seconds - 60\
-                                    if token_expires_in_seconds > 0\
-                                    else 0
-
-    return token_object
 
 if __name__ == '__main__':
     token = get_vk_token()
