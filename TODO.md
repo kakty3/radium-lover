@@ -2,6 +2,7 @@
 - add token expiration checking (При выполнении методов требующих авторизации, возвратится ошибка 17: Validation required. )
 - move vk auth part to separate file
 - escape web chars like %20
+- encrypt access token file 
 
 - filtering special symbols in song name
 - automatic detecting favourited song http://brunorocha.org/python/watching-a-directory-for-file-changes-with-python.html
@@ -11,14 +12,9 @@
 - add song to radiostation album
 - Looking for "Wes Montgomery & Milt Jackson - Delila" -> 1. Wes Montgomery - Caravan
 - Looking for "054 All The People - Cramp Your Style" -> Nothing found
--  1. Rufus &amp; Chaka Khan - Feel Good
-   3. Rufus - Feel good
-   3rd song is better, but 1st added. Add song with minimum diff
-
-
-______________
-+ token caching
-+ load token with path where script located
-+ add MacOS notification
-+ Rufus &amp; Chaka Khan - Feel Good -> decode from &amp; to '&'
-+ Library/Application Support/Radium/song_history.plist to global
+-  3rd song is better, but 1st added. Add song with minimum diff
+    ```
+    1. Rufus &amp; Chaka Khan - Feel Good
+    3. Rufus - Feel good
+    ```
+- anither

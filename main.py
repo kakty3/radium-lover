@@ -1,50 +1,39 @@
-#! /usr/bin/env python
-#coding: utf-8
-import xml.etree.ElementTree as ET
 import urllib2
-import getpass
 import os
-import StringIO
+import urlparse
 from urllib import urlencode
-import cStringIO
-import pycurl
-import re
 import HTMLParser
 import pickle
 import json
-from pync import Notifier
 import time
-import BaseHTTPServer
 import webbrowser
-import SimpleHTTPServer, SocketServer
-import cgi
-import sys
+import SocketServer, BaseHTTPServer
+
+import xml.etree.ElementTree as ET
+from pync import Notifier
+
 
 HOME_DIR = os.path.expanduser("~")
 RADIUM_SONG_LOG_FILENAME = os.path.join(HOME_DIR, 'Library/Application Support/Radium/song_history.plist')
 APP_ID = '4786305'
 SCRIPT_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
-# COOKIE_FILE = os.path.join(SCRIPT_DIRECTORY, 'cookie.txt')
 TOKEN_CACHE_FILENAME = os.path.join(SCRIPT_DIRECTORY, 'token_cache')
 TOKEN = None
+REDIRECT_PORT = 8000
+REDIRECT_URI = 'http://localhost:%d' % REDIRECT_PORT
 
 def get_vk_token():
-    token = load_token_from_file()
-    token = None
-    # token_expired = token is None or int(time.time()) >= token['expiring_time']
-    if token is not None:
-        if token['expiring_time'] == 0:
-            token_expired = False
-        elif int(time.time()) >= token['expiring_time']:
-            token_expired = True
-    else:
-        token_expired = True
+    # TODO: test with expired token
+    # TODO: check if token is valid
 
-    if token_expired:
-        print 'Token expired. Fetching new one.'
+    token = load_token_from_file()
+    if token and token['expiring_time'] > int(time.time()):
+        access_token = token['access_token']
+    else:
         token = get_vk_token_object()
         save_token_to_file(token)
-    return token['access_token']
+        access_token = token['access_token']
+    return access_token
 
 
 def load_token_from_file():
@@ -79,8 +68,7 @@ def search_song(search_queue, access_token):
         'access_token': access_token
     }
     request_url = 'https://api.vk.com/method/audio.search?{}'.format(urlencode(parameters))
-    print request_url
-
+    # TODO: rewrite with requests
     response = urllib2.urlopen(request_url)
     json_data = response.read()
     data = json.loads(json_data)
@@ -129,83 +117,56 @@ def add_song(audio_id, owner_id, access_token):
     return 'response' in json.loads(response)
 
 
-# def auth_into_vk(email, password):
-#     url = 'http://vk.com/login.php'
-
-#     buf = cStringIO.StringIO()
-
-#     c = pycurl.Curl()
-#     c.setopt(c.URL, url)
-#     c.setopt(c.FOLLOWLOCATION, 1)
-#     c.setopt(c.COOKIEJAR, COOKIE_FILE)
-#     c.setopt(c.COOKIEFILE, COOKIE_FILE)
-#     c.setopt(c.WRITEFUNCTION, buf.write)
-
-#     postFields = '_origin=https://oauth.vk.com'
-#     postFields += '&email=' + email + '&pass=' + password
-#     c.setopt(c.POSTFIELDS, postFields)
-#     c.setopt(c.POST, 1)
-#     c.perform()
-#     c.close()
-#     buf.close()
-
 class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
-    # def do_HEAD(self):
-    #     self.send_response(200)
-    #     self.send_header("Content-type", "text/html")
-    #     self.end_headers()
     def do_GET(self):
-        """Respond to a GET request."""
         self.send_response(200)
         self.send_header("Content-type", "text/html")
         self.end_headers()
-        self.wfile.write("<html>")
-        self.wfile.write("<body>")
-        js = '''
+        self.wfile.write("<html><body>")
+        self.wfile.write("""
             <script>
             var xhr = new XMLHttpRequest();
-            var body = window.location.hash;
 
-            xhr.open("POST", 'http://localhost:8000', true)
+            xhr.open("POST", '{redirect_uri}', true)
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded')
 
-            xhr.send(body);
+            xhr.send(window.location.hash);
             window.close();
             </script>
-        '''
-        self.wfile.write(js)
+        """.format(
+            redirect_uri=REDIRECT_URI
+        ))
         self.wfile.write("</body></html>")
 
     def do_POST(self):
-        ctype, pdict = cgi.parse_header(self.headers.getheader('content-type'))
         length = int(self.headers.getheader('content-length'))
-        postvars = cgi.parse_qs(self.rfile.read(length), keep_blank_values=1)
         global TOKEN
-        TOKEN = postvars
-        print postvars
+        TOKEN = urlparse.parse_qs(self.rfile.read(length), keep_blank_values=0)
+
 
 def get_vk_token_object():
     parameters = {
         'client_id': APP_ID,
         'scope': 'audio',
-        # 'redirect_uri': 'https://oauth.vk.com/blank.html',
-        'redirect_uri': 'http://yourlocalhostalias.com:8000',
-        'display': 'mobile',
-        'v': 5.28,
+        'redirect_uri': REDIRECT_URI,
+        'display': 'page',
+        'v': 5.37,
         'response_type': 'token'
     }
     auth_url = "https://oauth.vk.com/authorize?{}".format(urlencode(parameters))
 
     webbrowser.open_new(auth_url)
-    PORT = 8000
-    httpd = SocketServer.TCPServer(("", PORT), MyHandler)
+
+    SocketServer.TCPServer.allow_reuse_address = True
+    httpd = SocketServer.TCPServer(("", REDIRECT_PORT), MyHandler)
 
     httpd.handle_request()
     httpd.handle_request()
-    TOKEN['access_token'] = TOKEN['#access_token']
-    for key, value in TOKEN.items():
-        TOKEN[key] = value[0]
-    return TOKEN
+    token_object = dict()
+    token_object['access_token'] = TOKEN['#access_token'][0]
+    token_expires_in = int(TOKEN['expires_in'][0])
+    token_object['expiring_time'] = int(time.time()) + token_expires_in - 60
+    return token_object
 
 
 if __name__ == '__main__':
