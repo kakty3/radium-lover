@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 import urllib2
 import getpass
 import os
+import StringIO
 from urllib import urlencode
 import cStringIO
 import pycurl
@@ -13,6 +14,7 @@ import pickle
 import json
 from pync import Notifier
 import time
+import BaseHTTPServer
 
 HOME_DIR = os.path.expanduser("~")
 RADIUM_SONG_LOG_FILENAME = os.path.join(HOME_DIR, 'Library/Application Support/Radium/song_history.plist')
@@ -24,12 +26,22 @@ TOKEN_CACHE_FILENAME = os.path.join(SCRIPT_DIRECTORY, 'token_cache')
 
 def get_vk_token():
     token = load_token_from_file()
-    token_expired = token is None or int(time.time()) >= token['expiring_time']
+    token = None
+    # token_expired = token is None or int(time.time()) >= token['expiring_time']
+    if token is not None:
+        if token['expiring_time'] == 0:
+            token_expired = False
+        elif int(time.time()) >= token['expiring_time']:
+            token_expired = True
+    else:
+        token_expired = True
+
     if token_expired:
         print 'Token expired. Fetching new one.'
         token = get_vk_token_object()
         save_token_to_file(token)
     return token['access_token']
+
 
 def load_token_from_file():
     if not os.path.isfile(TOKEN_CACHE_FILENAME):
@@ -38,10 +50,12 @@ def load_token_from_file():
         token = pickle.load(cache_file)
         return token
 
+
 def save_token_to_file(token):
     global TOKEN_CACHE_FILENAME
     with open(TOKEN_CACHE_FILENAME, 'w') as cache_file:
         pickle.dump(token, cache_file)
+
 
 def get_song_name():
     tree = ET.parse(RADIUM_SONG_LOG_FILENAME)
@@ -108,57 +122,68 @@ def add_song(audio_id, owner_id, access_token):
     response = urllib2.urlopen(requests_url).read()
     return 'response' in json.loads(response)
 
-def auth_into_vk(email, password):
-    url = 'http://vk.com/login.php'
 
-    buf = cStringIO.StringIO()
+# def auth_into_vk(email, password):
+#     url = 'http://vk.com/login.php'
 
-    c = pycurl.Curl()
-    c.setopt(c.URL, url)
-    c.setopt(c.FOLLOWLOCATION, 1)
-    c.setopt(c.COOKIEJAR, COOKIE_FILE)
-    c.setopt(c.COOKIEFILE, COOKIE_FILE)
-    c.setopt(c.WRITEFUNCTION, buf.write)
+#     buf = cStringIO.StringIO()
 
-    postFields = '_origin=https://oauth.vk.com'
-    postFields += '&email=' + email + '&pass=' + password
-    c.setopt(c.POSTFIELDS, postFields)
-    c.setopt(c.POST, 1)
-    c.perform()
-    c.close()
-    buf.close()
+#     c = pycurl.Curl()
+#     c.setopt(c.URL, url)
+#     c.setopt(c.FOLLOWLOCATION, 1)
+#     c.setopt(c.COOKIEJAR, COOKIE_FILE)
+#     c.setopt(c.COOKIEFILE, COOKIE_FILE)
+#     c.setopt(c.WRITEFUNCTION, buf.write)
+
+#     postFields = '_origin=https://oauth.vk.com'
+#     postFields += '&email=' + email + '&pass=' + password
+#     c.setopt(c.POSTFIELDS, postFields)
+#     c.setopt(c.POST, 1)
+#     c.perform()
+#     c.close()
+#     buf.close()
+
+def run(server_class=BaseHTTPServer.HTTPServer,
+        handler_class=BaseHTTPServer.BaseHTTPRequestHandler):
+    server_address = ('', 8000)
+    httpd = server_class(server_address, handler_class)
+    httpd.serve_forever()
+
 
 def get_vk_token_object():
-    # password = getpass.getpass()
-    # auth_into_vk(email='kakty3.mail@gmail.com',
-    #              password=password)
-
     parameters = {
         'client_id': APP_ID,
         'scope': 'audio',
-        'redirect_uri': 'https://oauth.vk.com/blank.html',
-        'display': 'page',
+        # 'redirect_uri': 'https://oauth.vk.com/blank.html',
+        'redirect_uri': 'http://yourlocalhostalias.com:8000',
+        'display': 'mobile',
         'v': 5.28,
         'response_type': 'token'
     }
     auth_url = "https://oauth.vk.com/authorize?{}".format(urlencode(parameters))
 
+    print auth_url
+
     # buf = cStringIO.StringIO()
     # for suppress output
-    # storage = cStringIO.StringIO()
+    storage = cStringIO.StringIO()
     c = pycurl.Curl()
     c.setopt(c.URL, auth_url)
-    c.setopt(c.FOLLOWLOCATION, False)
+    c.setopt(c.FOLLOWLOCATION, 1)
     # global COOKIE_FILE
     c.setopt(c.COOKIEJAR, COOKIE_FILE)
     c.setopt(c.COOKIEFILE, COOKIE_FILE)
 
     # c.setopt(c.HEADERFUNCTION, buf.write)
     # for suppress output
-    # c.setopt(c.WRITEFUNCTION, storage.write)
-
+    c.setopt(c.WRITEFUNCTION, storage.write)
     c.perform()
+    run()
+
     redirect_url = c.getinfo(c.REDIRECT_URL)
+    print redirect_url
+    # return
+
     c.setopt(c.URL, redirect_url)
     c.perform()
     token_url = c.getinfo(c.REDIRECT_URL)
@@ -172,31 +197,25 @@ def get_vk_token_object():
     token_expires_in_seconds = int(re.search('expires_in=([0-9A-Fa-f]+)&', token_url).group(1))
     # token_object['expires_in'] = re.search('expires_in=([0-9A-Fa-f]+)&', token_url).group(1)
     # token_object['user_id'] = re.search('user_id=([0-9A-Fa-f]+)', token_url).group(1)
-    token_object['expiring_time'] = int(time.time()) + token_expires_in_seconds - 60
+    token_object['expiring_time'] = int(time.time()) + token_expires_in_seconds - 60\
+                                    if token_expires_in_seconds > 0\
+                                    else 0
 
     return token_object
 
 if __name__ == '__main__':
-
-    # print get_token()
     token = get_vk_token()
-    # print token
     song_name = get_song_name()
-    song_name = 'All The People - Cramp Your Style'
     song = search_song(song_name, token)
     if song is None:
         search_url = 'https://vk.com/audio?{}'.format(urlencode({'q': song_name}))
         print 'Try by yourself', search_url
-        Notifier.notify('Click to open audio search in browser.',
-                title='Nothing found',
-                # subtitle='by ' + song['artist'],
-                sender='com.catpigstudios.Radium',
-                open=search_url)
+        Notifier.notify(title='Nothing found',
+                        message='Click to open audio search in browser.',
+                        sender='com.catpigstudios.Radium',
+                        open=search_url)
     else:
-    # if song is not None:
         song_id = add_song(song['aid'], song['owner_id'], token)
-        # song_added = False
-        # if song_added:
         print 'Song successfully added.'
         Notifier.notify(title=song['title'],
                         subtitle='by ' + song['artist'],
