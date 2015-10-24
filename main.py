@@ -1,3 +1,4 @@
+#coding: utf-8
 import urllib2
 import os
 import urlparse
@@ -21,6 +22,7 @@ TOKEN_CACHE_FILENAME = os.path.join(SCRIPT_DIRECTORY, 'token_cache')
 TOKEN = None
 REDIRECT_PORT = 8000
 REDIRECT_URI = 'http://localhost:%d' % REDIRECT_PORT
+
 
 def get_vk_token():
     # TODO: test with expired token
@@ -59,9 +61,8 @@ def get_song_name():
 
 
 def search_song(search_queue, access_token):
-    # TODO: rewrite with json
+    # TODO: return list of songs and dont print songs list
     print('Looking for "{}"'.format(search_queue))
-    print '- ' * 30
     parameters = {
         'q': search_queue,
         'count': 5,
@@ -73,7 +74,7 @@ def search_song(search_queue, access_token):
     json_data = response.read()
     data = json.loads(json_data)
     # TODO: add error_code handlers
-    if not 'response' in data:
+    if 'response' not in data:
         print 'Some error occurred'
         print data
         return
@@ -81,19 +82,12 @@ def search_song(search_queue, access_token):
         # print 'Nothing found'
         return None
     for index, song in enumerate(data['response'][1:]):
-        artist = song['artist'].encode('utf-8')
-        title = song['title'].encode('utf-8')
-        # audio_id = song['aid']
-        # owner_id = song['owner_id']
-        # print '  {} - {} [audio_id={}, owner_id={}]'.format(artist, title, audio_id, owner_id)
-        print '{:2d}. {} - {}'.format(index + 1, artist, title)
+        song['artist'] = song['artist'].encode('utf-8')
+        song['title'] = song['title'].encode('utf-8')
+        print '{:2d}. {} - {}'.format(index + 1, song['artist'], song['title'])
     print '- ' * 30
 
     song = data['response'][1]
-    # artist = song['artist'].encode('utf-8')
-    # title = song['title'].encode('utf-8')
-    # audio_id = song['aid']
-    # owner_id = song['owner_id']
     return song
 
 
@@ -168,8 +162,16 @@ def get_vk_token_object():
     token_object['expiring_time'] = int(time.time()) + token_expires_in - 60
     return token_object
 
+def get_song_short_title(song, max_length=30):
+    title = song['title']
+    if len(title) > max_length:
+        space_index = title.find(' ', max_length)
+        if space_index != -1:
+            title = title[:space_index] + ' ...'
+    return title
 
-if __name__ == '__main__':
+
+def run():
     token = get_vk_token()
     song_name = get_song_name()
     song = search_song(song_name, token)
@@ -181,9 +183,15 @@ if __name__ == '__main__':
                         sender='com.catpigstudios.Radium',
                         open=search_url)
     else:
-        song_id = add_song(song['aid'], song['owner_id'], token)
-        print 'Song successfully added.'
-        Notifier.notify(title=song['title'],
+        add_song(song['aid'], song['owner_id'], token)
+
+        short_title = get_song_short_title(song)
+        print 'Song "%s - %s" successfully added.' % (song['artist'], short_title)
+        Notifier.notify(title=short_title,
                         subtitle='by ' + song['artist'],
                         message='Song was successfully added.',
-                        sender='com.catpigstudios.Radium')
+                        sender='com.catpigstudios.Radium',
+                        open='https://vk.com/audio')
+
+if __name__ == '__main__':
+    run()
