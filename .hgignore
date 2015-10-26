@@ -5,6 +5,7 @@ syntax: glob
 *.iml
 
 
+/TODO.md
 *.py[cod]
 
 token_cache

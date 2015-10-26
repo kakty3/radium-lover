@@ -53,6 +53,7 @@ def save_token_to_file(token):
 
 
 def get_song_name():
+    # TODO: rewrite in more clear way
     tree = ET.parse(RADIUM_SONG_LOG_FILENAME)
     root = tree.getroot()
     song = root[0][0]

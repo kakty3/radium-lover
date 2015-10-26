@@ -2,7 +2,9 @@
 - add token expiration checking (При выполнении методов требующих авторизации, возвратится ошибка 17: Validation required. )
 - move vk auth part to separate file
 - escape web chars like %20
-- encrypt access token file 
+- encrypt access token file
+- add logging
+- test with searching random word
 
 - filtering special symbols in song name
 - automatic detecting favourited song http://brunorocha.org/python/watching-a-directory-for-file-changes-with-python.html
