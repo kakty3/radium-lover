@@ -1,4 +1,8 @@
 #coding: utf-8
+import sys
+import argparse
+import re
+import socket
 import urllib2
 import os
 import urlparse
@@ -13,15 +17,15 @@ import SocketServer, BaseHTTPServer
 import xml.etree.ElementTree as ET
 from pync import Notifier
 
+from edit_distance import get_edit_distance
+
 
 HOME_DIR = os.path.expanduser("~")
 RADIUM_SONG_LOG_FILENAME = os.path.join(HOME_DIR, 'Library/Application Support/Radium/song_history.plist')
 APP_ID = '4786305'
 SCRIPT_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
-TOKEN_CACHE_FILENAME = os.path.join(SCRIPT_DIRECTORY, 'token_cache')
+TOKEN_CACHE_FILENAME = os.path.join(SCRIPT_DIRECTORY, '.token')
 TOKEN = None
-REDIRECT_PORT = 8000
-REDIRECT_URI = 'http://localhost:%d' % REDIRECT_PORT
 
 
 def get_vk_token():
@@ -32,7 +36,7 @@ def get_vk_token():
     if token and token['expiring_time'] > int(time.time()):
         access_token = token['access_token']
     else:
-        token = get_vk_token_object()
+        token = get_new_vk_token()
         save_token_to_file(token)
         access_token = token['access_token']
     return access_token
@@ -61,35 +65,33 @@ def get_song_name():
     return HTMLParser.HTMLParser().unescape(song_name)
 
 
-def search_song(search_queue, access_token):
-    # TODO: return list of songs and dont print songs list
+def search_song(access_token, search_queue, n_of_items=5):
+    # TODO: make list of search_query preprocessors, e.g. deleting word or symbols
     print('Looking for "{}"'.format(search_queue))
     parameters = {
         'q': search_queue,
-        'count': 5,
+        'count': n_of_items,
         'access_token': access_token
     }
     request_url = 'https://api.vk.com/method/audio.search?{}'.format(urlencode(parameters))
     # TODO: rewrite with requests
     response = urllib2.urlopen(request_url)
-    json_data = response.read()
-    data = json.loads(json_data)
+    data = json.loads(response.read())
     # TODO: add error_code handlers
     if 'response' not in data:
         print 'Some error occurred'
         print data
         return
-    if len(data['response']) <= 1:
-        # print 'Nothing found'
-        return None
-    for index, song in enumerate(data['response'][1:]):
+    songs_list = data['response'][1:n_of_items + 1]
+    for index, song in enumerate(songs_list):
         song['artist'] = song['artist'].encode('utf-8')
-        song['title'] = song['title'].encode('utf-8')
-        print '{:2d}. {} - {}'.format(index + 1, song['artist'], song['title'])
-    print '- ' * 30
 
-    song = data['response'][1]
-    return song
+        song['title'] = song['title'].encode('utf-8')
+        # TODO: move it to string normalization method with replacing web chars
+        song['title'] = re.sub('[\n+]', '', song['title'])
+        print '{:2d}. {} - {}'.format(index + 1, song['artist'], song['title'])
+
+    return songs_list
 
 
 def add_song(audio_id, owner_id, access_token):
@@ -112,7 +114,7 @@ def add_song(audio_id, owner_id, access_token):
     return 'response' in json.loads(response)
 
 
-class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+class HttpHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header("Content-type", "text/html")
@@ -129,7 +131,7 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             window.close();
             </script>
         """.format(
-            redirect_uri=REDIRECT_URI
+            redirect_uri='http://' + self.headers.get('Host')
         ))
         self.wfile.write("</body></html>")
 
@@ -139,11 +141,22 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         TOKEN = urlparse.parse_qs(self.rfile.read(length), keep_blank_values=0)
 
 
-def get_vk_token_object():
+def get_new_vk_token():
+    SocketServer.TCPServer.allow_reuse_address = True
+    httpd = None
+    redirect_port = 20938
+    while httpd is None:
+        try:
+            httpd = SocketServer.TCPServer(("", redirect_port), HttpHandler)
+            print 'Server is running on port %d.' % redirect_port
+        except socket.error:
+            print 'Port %d is already in use. Trying next port.' % redirect_port
+            redirect_port += 1
+
     parameters = {
         'client_id': APP_ID,
         'scope': 'audio',
-        'redirect_uri': REDIRECT_URI,
+        'redirect_uri': 'http://localhost:%d' % redirect_port,
         'display': 'page',
         'v': 5.37,
         'response_type': 'token'
@@ -152,9 +165,6 @@ def get_vk_token_object():
 
     webbrowser.open_new(auth_url)
 
-    SocketServer.TCPServer.allow_reuse_address = True
-    httpd = SocketServer.TCPServer(("", REDIRECT_PORT), MyHandler)
-
     httpd.handle_request()
     httpd.handle_request()
     token_object = dict()
@@ -162,6 +172,7 @@ def get_vk_token_object():
     token_expires_in = int(TOKEN['expires_in'][0])
     token_object['expiring_time'] = int(time.time()) + token_expires_in - 60
     return token_object
+
 
 def get_song_short_title(song, max_length=30):
     title = song['title']
@@ -172,19 +183,54 @@ def get_song_short_title(song, max_length=30):
     return title
 
 
-def run():
-    token = get_vk_token()
+def get_most_similar_song(song_name, songs_list):
+    min_distance = sys.maxint
+    best_song = None
+    for song in songs_list:
+        distance = get_edit_distance(song_name, "%s - %s" % (song['artist'], song['title']))
+        if distance < min_distance:
+            min_distance = distance
+            best_song = song
+    return best_song
+
+
+def run_dev():
+    vk_token = get_vk_token()
     song_name = get_song_name()
-    song = search_song(song_name, token)
+    songs_list = search_song(vk_token, song_name)
+    song = get_most_similar_song(song_name, songs_list)
     if song is None:
         search_url = 'https://vk.com/audio?{}'.format(urlencode({'q': song_name}))
-        print 'Try by yourself', search_url
+        print 'Nothing found.', search_url
         Notifier.notify(title='Nothing found',
                         message='Click to open audio search in browser.',
                         sender='com.catpigstudios.Radium',
                         open=search_url)
     else:
-        add_song(song['aid'], song['owner_id'], token)
+        # add_song(song['aid'], song['owner_id'], vk_token)
+
+        short_title = get_song_short_title(song)
+        print '"%s - %s" added.' % (song['artist'], short_title)
+        # Notifier.notify(title=short_title,
+        #                 subtitle='by ' + song['artist'],
+        #                 message='Song was successfully added.',
+        #                 sender='com.catpigstudios.Radium',
+        #                 open='https://vk.com/audio')
+
+
+def run():
+    vk_token = get_vk_token()
+    song_name = get_song_name()
+    song = search_song(song_name, vk_token)
+    if song is None:
+        search_url = 'https://vk.com/audio?{}'.format(urlencode({'q': song_name}))
+        print 'Nothing found.', search_url
+        Notifier.notify(title='Nothing found',
+                        message='Click to open audio search in browser.',
+                        sender='com.catpigstudios.Radium',
+                        open=search_url)
+    else:
+        add_song(song['aid'], song['owner_id'], vk_token)
 
         short_title = get_song_short_title(song)
         print 'Song "%s - %s" successfully added.' % (song['artist'], short_title)
@@ -194,5 +240,15 @@ def run():
                         sender='com.catpigstudios.Radium',
                         open='https://vk.com/audio')
 
+
 if __name__ == '__main__':
-    run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dev',
+                        help='Run in developer mode',
+                        default=False,
+                        action='store_true')
+    args = parser.parse_args()
+    if args.dev:
+        run_dev()
+    else:
+        run()
